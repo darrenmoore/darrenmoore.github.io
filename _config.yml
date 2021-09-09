@@ -1,0 +1,39 @@
+title: Darren Moore's Technical Corner
+description: > # this means to ignore newlines until "baseurl:"
+  Darren Moore Technical Personal Blog
+permalink: ':title/'
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "" # the base hostname & protocol for your site, e.g. http://example.com
+site-twitter: #if your site has a twitter account, enter it here
+
+# Author Settings
+author: Darren Moore # add your name
+author-img: darren-moore.jpg # add your photo
+about-author: >
+  VP of Engineering at Arthur Online Property Management.<br><br>
+  Previously Founder of Firecreek running technical agile teams of 30+ people.<br><br>
+  Living in Bangkok, formally a developer and now a hobbyist in different languages and frameworks.<br><br>
+  This is a personal site for anything I find interesting.
+social-twitter:
+social-facebook:
+social-github: darrenmoore # add your Github handle
+social-linkedin: darrenmooreuk # add your Linkedin handle
+social-email: darren.m@firecreekweb.com # add your Email address
+
+# Disqus
+discus-identifier: # add your discus identifier
+
+# Tracker
+analytics: # Google Analytics
+
+# Build Settings
+markdown: kramdown
+plugins:
+  - jekyll-sitemap
+  - jekyll-paginate
+  - jemoji
+
+paginate: 8
+paginate_path: "/page/:num"
+
+exclude: ["node_modules", "gulpfile.js", "package.json", "yarn.lock"]

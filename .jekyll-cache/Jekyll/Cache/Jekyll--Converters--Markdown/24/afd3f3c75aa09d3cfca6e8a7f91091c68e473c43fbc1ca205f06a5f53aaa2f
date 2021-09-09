@@ -1,0 +1,76 @@
+I"<p>Smart automation in the Tuya app is great for basic control of your IoT products. But if you want to take more control and feed the device events into your own solution there is a method and it’s reliable.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<ul>
+  <li>Android Device / Android Emulator</li>
+  <li>Tuya App</li>
+  <li>Macrodroid (Android App)</li>
+  <li>Webhook receiver</li>
+  <li>IoT device (such as door sensor/PIR sensor)</li>
+</ul>
+
+<h2 id="tuya-setup">Tuya Setup</h2>
+
+<p>With your Tuya app go to “Smart” from the toolbar and click the add button to create a new smart event. Choose the device and the event, then select to send a notification/message. What ever is typed into the message will be sent to your webhook URL.</p>
+
+<p>In the example, if movement is detected by the PIR sensor then a notification will be sent. You must close / minimize the Tuya app for the notification to be sent as a phone push notification - which is critical for the next stage where Macrodroid will capture the notification.</p>
+
+<p><img src="/assets/img/posts/tuya-create-notification-webhook.gif" alt="Setting up in Tuya" /></p>
+
+<h2 id="macrodroid-setup">Macrodroid Setup</h2>
+
+<p>When the Tuya app is not active and the device event is triggered a push notification is sent to the device. Macrodroid can capture this notification and send it as a webhook to your specified URL that can handle the event.</p>
+
+<p>This step takes a small amount of experience with Macrodroid.</p>
+
+<h3 id="trigger">Trigger</h3>
+
+<p>Notification received, typically I use a “contains” to ensure it does not pick up other notifications.<br />
+Ensure “Prevent multiple triggers” is ticked to prevent duplicate events.</p>
+
+<h3 id="actions">Actions</h3>
+
+<ul>
+  <li>Set a local variable as <code class="language-plaintext highlighter-rouge">[not_title]</code></li>
+  <li>If required do text manipulation</li>
+  <li>Make a <code class="language-plaintext highlighter-rouge">HTTP GET</code> call to your hosted webhook receiver passing the notification text</li>
+  <li>Clear the notification</li>
+</ul>
+
+<p><img src="/assets/img/posts/macrodroid-iot-notification.png" alt="Macrodroid setup" /></p>
+
+<h2 id="limitations">Limitations</h2>
+
+<p><strong>Buttons</strong><br />
+Some devices like IoT buttons cannot be added through “Smart” so it’s not easy to add a notification.<br />
+“Tap-to-run” that can be attached to a button press don’t support sending messages/notifications though a bug that I don’t fully understand in the Tuya app is a old smart action that sent a notification became a “Tap-to-run” enabled action so I was able to bind a IoT button to a notification. When I can find out how to reproduce this edge-case I will update this page.</p>
+
+<p><strong>Tuya app loaded</strong><br />
+If the Tuya app is loaded the notifications binded on devices won’t be phone push notifications so Macrodroid will not be able to capture them. To test the full workflow the Tuya app must be running in the background and not foreground.</p>
+
+<p><strong>BlueStacks can crash</strong><br />
+If you’re using an emulator like BlueStacks expect it to crash occassionally. For me it crashes every other day and I’ve not found a solution to this problem yet. I plan to move everything to a real Android device when I’m out of the PoC stage! To detect if BlueStacks has crashed I have a ping health check that my server will send to Macrodroid and expect a reply - if there is no reply within 2 minutes my health check fails and I get notifications to my personal phone device.</p>
+
+<h2 id="my-setup">My Setup</h2>
+
+<p>The Tuya notification messages are made up of the following parts.</p>
+
+<p><code class="language-plaintext highlighter-rouge">iot-event:id=ff72eb7e-87d6-45f8-8025-798899b271be:key=sensor-door-open:value=true</code></p>
+
+<figure class="highlight"><pre><code class="language-bash" data-lang="bash">//To ensure Macrodroid captures the correct notifications
+iot-event:
+
+//The UUID of the device <span class="k">in </span>my <span class="nb">local </span>database
+<span class="nb">id</span><span class="o">=[</span>UUID]
+
+//An <span class="nb">alias </span>of the event name, <span class="k">in </span>the database I have events such as sensor-door-open, light-on
+<span class="nv">key</span><span class="o">=[</span>EVENT_NAME]
+
+//State of device
+<span class="nv">value</span><span class="o">=[</span>BOOLEAN, STRING]</code></pre></figure>
+
+<p>For tracking sensors I will add two Tuya smart events. One for movement [and if the PIR Sensor supports it] and another for no movement (noone). The notification <code class="language-plaintext highlighter-rouge">id</code> and <code class="language-plaintext highlighter-rouge">key</code> will be the same but the <code class="language-plaintext highlighter-rouge">value</code> will be true if it detects movement and false if no movement is detected. If your PIR sensor does not have events for both movement and “noone” then throw away that PIR sensor and get one that does!</p>
+
+<p><img src="/assets/img/posts/tuya-smart-list.gif" alt="List of Tuya actions" /></p>
+:ET
