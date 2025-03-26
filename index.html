@@ -1,21 +1,489 @@
----
-layout: main
----
-{% for post in paginator.posts %}
-<article class="post">
-  {% if post.img %}
-    <a class="post-thumbnail" style="background-image: url({{"/assets/img/" | prepend: site.baseurl | append : post.img}})" href="{{post.url | prepend: site.baseurl}}"></a>
-  {% else %}
-  {% endif %}
-  <div class="post-content">
-    <h2 class="post-title"><a href="{{post.url | prepend: site.baseurl}}">{{post.title}}</a></h2>
-    <p>{{ post.content | strip_html | truncatewords: 15 }}</p>
-    {% comment %}
-    <span class="post-date">{{post.date | date: '%Y, %b %d'}}&nbsp;&nbsp;&nbsp;—&nbsp;</span>
-    <span class="post-words">{% capture words %}{{ post.content | number_of_words }}{% endcapture %}{% unless words contains "-" %}{{ words | plus: 250 | divided_by: 250 | append: " minute read" }}{% endunless %}</span>
-    {% endcomment %}
-  </div>
-</article>
-{% endfor %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Pang Clone - Levels & Hook</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column; /* Stack canvas and info */
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to bottom, #4a6a8a, #1e2b38); /* Deeper space/sky gradient */
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        #game-container {
+             position: relative; /* Needed for absolute positioning of message */
+             width: 800px; /* Match canvas */
+             height: 600px; /* Match canvas */
+        }
+        canvas {
+            border: 3px solid #a0b0c0; /* Lighter border */
+            background: linear-gradient(to bottom, #d0e0f0, #a0c0e0); /* Soft gradient bg */
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+            display: block;
+        }
+        #info-bar {
+             color: #fff;
+             margin-top: 10px;
+             font-size: 1.2em;
+             text-shadow: 1px 1px 2px black;
+             width: 800px; /* Match canvas width */
+             text-align: center;
+        }
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.8em; /* Slightly larger */
+            font-weight: bold;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.75);
+            padding: 35px 45px;
+            border-radius: 15px;
+            display: none;
+            text-align: center;
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.9);
+            border: 3px solid rgba(255, 255, 255, 0.6);
+            z-index: 10; /* Ensure it's on top */
+        }
+         #message span { /* Style for subtext */
+             font-size: 0.5em;
+             font-weight: normal;
+             display: block; /* Put on new line */
+             margin-top: 10px;
+         }
+    </style>
+</head>
+<body>
+    <div id="info-bar">Level: <span id="level-display">1</span></div>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="message"></div>
+    </div>
 
-{% include pagination.html %}
+    <script>
+        // --- Enhanced Configuration ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageDiv = document.getElementById('message');
+        const levelDisplay = document.getElementById('level-display');
+
+        const GRAVITY = 0.18;
+        const PLAYER_SPEED = 6;
+        const HOOK_SPEED = 10; // Speed the hook travels upwards
+        const BALL_SIZES = [10, 18, 28, 42];
+        const PLAYER_HEIGHT = 45;
+        const PLAYER_WIDTH = 40;
+
+        // --- Level Definitions ---
+        const LEVELS = [
+            // Level 1: One large ball
+            [ { x: canvas.width / 2, y: 150, size: 3, vx: 2.5, vy: 0 } ],
+            // Level 2: Two large balls
+            [
+                { x: 150, y: 100, size: 3, vx: 2.5, vy: 0 },
+                { x: canvas.width - 150, y: 150, size: 3, vx: -2.5, vy: 0 }
+            ],
+            // Level 3: Mix of sizes
+            [
+                { x: 100, y: 100, size: 2, vx: 3, vy: 0 },
+                { x: canvas.width / 2, y: 150, size: 3, vx: -2, vy: 0 },
+                { x: canvas.width - 100, y: 100, size: 2, vx: -3, vy: 0 }
+            ],
+             // Level 4: More balls, smaller start
+            [
+                { x: 100, y: 80, size: 1, vx: 4, vy: 0 },
+                { x: 300, y: 120, size: 2, vx: -3, vy: 0 },
+                { x: 500, y: 120, size: 2, vx: 3, vy: 0 },
+                { x: 700, y: 80, size: 1, vx: -4, vy: 0 }
+            ],
+             // Level 5: Challenge
+             [
+                 { x: canvas.width * 0.2, y: 100, size: 3, vx: 2, vy: 0 },
+                 { x: canvas.width * 0.8, y: 100, size: 3, vx: -2, vy: 0 },
+                 { x: canvas.width * 0.5, y: 150, size: 2, vx: 3, vy: 0 },
+             ]
+        ];
+
+        // --- Bounce Physics (Pre-calculated) ---
+        const TARGET_BOUNCE_HEIGHTS = [
+             PLAYER_HEIGHT + 35, // Adjusted slightly higher for clearance
+             canvas.height * 0.5,
+             canvas.height * 0.75,
+             canvas.height - BALL_SIZES[3] - 15 // Near top
+        ];
+        const INITIAL_BOUNCE_VY = TARGET_BOUNCE_HEIGHTS.map(h =>
+             -Math.sqrt(2 * GRAVITY * Math.max(1, h)) // Ensure h > 0
+        );
+        INITIAL_BOUNCE_VY.forEach((vy, i) => {
+            if (Math.abs(vy) < 2) INITIAL_BOUNCE_VY[i] = -2;
+        });
+
+         const BALL_COLORS = [
+             { fill: 'rgba(255, 100, 100, 0.9)', stroke: 'rgba(180, 50, 50, 1)' },
+             { fill: 'rgba(100, 200, 255, 0.9)', stroke: 'rgba(50, 120, 180, 1)' },
+             { fill: 'rgba(100, 255, 100, 0.9)', stroke: 'rgba(50, 180, 50, 1)' },
+             { fill: 'rgba(255, 180, 80, 0.9)', stroke: 'rgba(200, 120, 40, 1)' }
+         ];
+
+        // --- Game State ---
+        let player;
+        let hook; // Changed from projectile
+        let balls = [];
+        let keys = {};
+        let gameOver = false;
+        let gameWon = false;
+        let gameRunning = false; // Start paused until initial message clears
+        let currentLevelIndex = 0;
+        let showingMessage = false; // Track message state
+
+        // --- Classes ---
+        class Player { // (Mostly unchanged, using constants)
+             constructor() {
+                 this.width = PLAYER_WIDTH;
+                 this.height = PLAYER_HEIGHT;
+                 this.x = canvas.width / 2 - this.width / 2;
+                 this.y = canvas.height - this.height;
+                 this.color = { main: '#4477CC', accent: '#77AADD' }; // Slightly adjusted blue
+             }
+             draw() {
+                 const gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                 gradient.addColorStop(0, this.color.accent);
+                 gradient.addColorStop(1, this.color.main);
+                 ctx.fillStyle = gradient;
+                 ctx.strokeStyle = '#224488';
+                 ctx.lineWidth = 2;
+                 ctx.beginPath();
+                 ctx.moveTo(this.x + 5, this.y);
+                 ctx.lineTo(this.x + this.width - 5, this.y);
+                 ctx.quadraticCurveTo(this.x + this.width, this.y, this.x + this.width, this.y + 5);
+                 ctx.lineTo(this.x + this.width, this.y + this.height - 5);
+                 ctx.quadraticCurveTo(this.x + this.width, this.y + this.height, this.x + this.width - 5, this.y + this.height);
+                 ctx.lineTo(this.x + 5, this.y + this.height);
+                 ctx.quadraticCurveTo(this.x, this.y + this.height, this.x, this.y + this.height - 5);
+                 ctx.lineTo(this.x, this.y + 5);
+                 ctx.quadraticCurveTo(this.x, this.y, this.x + 5, this.y);
+                 ctx.closePath();
+                 ctx.fill();
+                 ctx.stroke();
+             }
+             move(dx) {
+                 this.x += dx;
+                 if (this.x < 0) this.x = 0;
+                 if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+             }
+        }
+
+        class GrapplingHook {
+             constructor(startX, startY) {
+                 this.startX = startX;
+                 this.startY = startY; // Player's top edge
+                 this.currentY = startY; // Tip position, moves upwards
+                 this.active = true;
+                 this.color = '#EFEFEF'; // Bright white/grey
+                 this.lineWidth = 3;
+             }
+
+             update() {
+                 if (!this.active) return;
+                 this.currentY -= HOOK_SPEED;
+                 if (this.currentY <= 0) {
+                     this.active = false;
+                     hook = null; // Allow firing again
+                 }
+             }
+
+             draw() {
+                 if (!this.active) return;
+                 ctx.beginPath();
+                 ctx.moveTo(this.startX, this.startY);
+                 ctx.lineTo(this.startX, this.currentY);
+                 ctx.strokeStyle = this.color;
+                 ctx.lineWidth = this.lineWidth;
+                 ctx.lineCap = 'round'; // Nicer ends
+                 ctx.stroke();
+
+                 // Optional: Draw a small "hook" head
+                 ctx.fillStyle = this.color;
+                 ctx.fillRect(this.startX - 4, this.currentY - 8, 8, 8);
+             }
+
+             // Added method to check collision with a ball
+             checkCollision(ball) {
+                 if (!this.active) return false;
+
+                 // 1. Check if ball's X-range overlaps the hook's X
+                 const overlapsX = (ball.x + ball.radius > this.startX - this.lineWidth / 2) &&
+                                   (ball.x - ball.radius < this.startX + this.lineWidth / 2);
+
+                 // 2. Check if ball's Y-range overlaps the hook's current vertical span
+                 const overlapsY = (ball.y + ball.radius > this.currentY) && // Ball bottom below hook tip
+                                   (ball.y - ball.radius < this.startY); // Ball top above hook start
+
+                 return overlapsX && overlapsY;
+             }
+        }
+
+
+        class Ball { // (Unchanged from previous version)
+             constructor(x, y, size, vx, vy) {
+                 this.x = x;
+                 this.y = y;
+                 this.size = size;
+                 this.radius = BALL_SIZES[this.size];
+                 this.vx = vx;
+                 this.vy = vy;
+                 this.colors = BALL_COLORS[this.size % BALL_COLORS.length];
+             }
+             draw() {
+                 const gradient = ctx.createRadialGradient(
+                     this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1,
+                     this.x, this.y, this.radius
+                 );
+                 gradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
+                 gradient.addColorStop(0.8, this.colors.fill);
+                 gradient.addColorStop(1, this.colors.stroke);
+                 ctx.beginPath();
+                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                 ctx.fillStyle = gradient;
+                 ctx.fill();
+                 ctx.strokeStyle = this.colors.stroke;
+                 ctx.lineWidth = 1.5;
+                 ctx.stroke();
+                 ctx.closePath();
+             }
+             update() {
+                 this.vy += GRAVITY;
+                 this.x += this.vx;
+                 this.y += this.vy;
+                 if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
+                     this.vx *= -1;
+                     this.x = (this.x - this.radius < 0) ? this.radius : canvas.width - this.radius;
+                 }
+                 if (this.y + this.radius >= canvas.height && this.vy > 0) {
+                     this.y = canvas.height - this.radius;
+                     this.vy = INITIAL_BOUNCE_VY[this.size];
+                 }
+                 if (this.y - this.radius < 0 && this.vy < 0) {
+                     this.y = this.radius;
+                     this.vy *= -0.6;
+                 }
+             }
+        }
+
+        // --- Game Logic ---
+        function resetGameState() {
+            player = new Player();
+            hook = null;
+            balls = [];
+            keys = {};
+            gameOver = false;
+            gameWon = false;
+            gameRunning = false; // Will be set to true after level load message
+            showingMessage = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        }
+
+        function loadLevel(levelIndex) {
+             if (levelIndex >= LEVELS.length) {
+                 // Player has completed all levels
+                 gameWon = true;
+                 gameRunning = false;
+                 displayMessage("CONGRATULATIONS!", "#FFD700", "You cleared all levels!"); // Gold color
+                 return false; // Indicate no more levels
+             }
+
+             currentLevelIndex = levelIndex;
+             levelDisplay.textContent = currentLevelIndex + 1; // Update info bar
+             balls = []; // Clear existing balls
+
+             // Display Level Start message
+             displayMessage(`Level ${currentLevelIndex + 1}`, "#448AFF", null, 1500); // Show for 1.5s
+
+             setTimeout(() => {
+                 // Load new balls after message delay
+                 const levelData = LEVELS[currentLevelIndex];
+                 levelData.forEach(b => balls.push(new Ball(b.x, b.y, b.size, b.vx, b.vy)));
+                 gameRunning = true; // Start the game logic for this level
+                 if (!gameOver) gameLoop(); // Resume loop if not game over
+             }, 1500); // Delay matches message duration
+
+             return true; // Indicate level loaded successfully
+        }
+
+
+        function update() {
+            if (!gameRunning || showingMessage) return; // Pause updates during messages
+
+            if (keys['ArrowLeft']) player.move(-PLAYER_SPEED);
+            if (keys['ArrowRight']) player.move(PLAYER_SPEED);
+
+            if (hook) hook.update();
+
+            balls.forEach(ball => ball.update());
+
+            checkCollisions();
+
+            // Check level clear condition
+            if (balls.length === 0 && !gameOver && !gameWon && gameRunning) {
+                gameRunning = false; // Pause game while transitioning
+                if (!loadLevel(currentLevelIndex + 1)) {
+                    // loadLevel returned false, meaning game is won
+                    gameWon = true; // Ensure state is set correctly
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw elements even if paused for messages, unless fully stopped
+            if (player) player.draw();
+            if (hook) hook.draw();
+            balls.forEach(ball => ball.draw());
+        }
+
+        function checkCollisions() {
+            if (!gameRunning || showingMessage) return;
+
+            // Hook vs Balls
+            if (hook && hook.active) {
+                for (let i = balls.length - 1; i >= 0; i--) {
+                    const ball = balls[i];
+
+                    if (hook.checkCollision(ball)) { // Use the hook's collision method
+                        hook.active = false; // Deactivate hook upon hit
+                        hook = null; // Allow firing again
+
+                        if (ball.size > 0) {
+                            const newSize = ball.size - 1;
+                            const splitVY = Math.min(-2, INITIAL_BOUNCE_VY[newSize] * 0.5);
+                            balls.push(new Ball(ball.x, ball.y, newSize, -Math.abs(ball.vx || 1.5), splitVY));
+                            balls.push(new Ball(ball.x, ball.y, newSize, Math.abs(ball.vx || 1.5), splitVY));
+                        }
+                        balls.splice(i, 1);
+                        break; // Hook disappears after one hit, stop checking
+                    }
+                }
+            }
+
+            // Player vs Balls
+            if (!gameOver) { // Only check if player is alive
+                 for (let i = 0; i < balls.length; i++) {
+                      const ball = balls[i];
+                      if (circleRectIntersect(ball, player)) {
+                          gameOver = true;
+                          gameRunning = false;
+                          displayMessage("GAME OVER!", "#F44336", `Level ${currentLevelIndex + 1}`); // Red loss color with level info
+                          break;
+                      }
+                 }
+             }
+        }
+
+        // --- Collision Helper --- (Unchanged)
+        function circleRectIntersect(circle, rect) {
+            const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
+            const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
+            const distX = circle.x - closestX;
+            const distY = circle.y - closestY;
+            const distanceSquared = (distX * distX) + (distY * distY);
+            return distanceSquared < (circle.radius * circle.radius);
+        }
+
+        // --- Input Handling ---
+        window.addEventListener('keydown', (e) => {
+             if (showingMessage && e.code !== 'Enter') return; // Allow Enter for restart during messages
+
+             keys[e.code] = true;
+
+             if (gameRunning && !showingMessage) {
+                  if (e.code === 'Space' && !hook) { // Fire hook if none active
+                       hook = new GrapplingHook(player.x + player.width / 2, player.y);
+                       e.preventDefault();
+                  }
+                  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+                       e.preventDefault();
+                  }
+             } else if ((gameOver || gameWon) && e.code === 'Enter') {
+                   resetGameState();
+                   loadLevel(0); // Start from level 1
+             } else if (showingMessage && e.code === 'Enter' && (gameOver || gameWon)) {
+                  // Allow Enter to restart even if message is still showing
+                  resetGameState();
+                  loadLevel(0);
+             }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // --- Message Display ---
+         let messageTimeoutId = null;
+         function displayMessage(text, color, subText = null, duration = null) {
+             if (messageTimeoutId) clearTimeout(messageTimeoutId); // Clear previous timeout if any
+
+             let messageContent = text;
+             if (subText) {
+                 messageContent += `<span>${subText}</span>`;
+             } else if (gameOver || gameWon) {
+                 messageContent += `<span>(Press Enter to Restart)</span>`;
+             }
+
+             messageDiv.innerHTML = messageContent;
+             messageDiv.style.backgroundColor = color;
+             messageDiv.style.display = 'block';
+             showingMessage = true;
+
+             if (duration) {
+                 messageTimeoutId = setTimeout(() => {
+                     messageDiv.style.display = 'none';
+                     showingMessage = false;
+                      // Resume game loop if it was paused for the message and game is not over/won
+                     if (!gameOver && !gameWon && gameRunning) {
+                          if (animationFrameId) cancelAnimationFrame(animationFrameId); // Prevent duplicates
+                          gameLoop();
+                     }
+                 }, duration);
+             } else {
+                 // If no duration (Game Over/Win), message stays until Enter
+             }
+         }
+
+
+        // --- Game Loop ---
+        let animationFrameId;
+        function gameLoop() {
+            if (!gameRunning || showingMessage) { // Pause loop if game not running OR message is showing (unless it's game over/won msg)
+                 if(gameOver || gameWon) draw(); // Draw final state for game over/won
+                 // Do not request next frame if paused
+                 return;
+             }
+
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Start Game ---
+        function startGame() {
+             resetGameState();
+             displayMessage("PANG CLONE!", "#2196F3", "Arrows: Move, Space: Shoot", 2000);
+             setTimeout(() => {
+                  loadLevel(0); // Load the first level after intro message
+             }, 2000); // Delay matches intro message duration
+        }
+
+        // Delay slightly to ensure DOM is fully ready
+        window.onload = startGame;
+
+    </script>
+</body>
+</html>
