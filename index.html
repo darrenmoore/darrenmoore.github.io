@@ -3,485 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Pang Clone - Levels & Hook</title>
+    <title>Ultimate Pang Clone - Fixes</title>
     <style>
-        body {
-            display: flex;
-            flex-direction: column; /* Stack canvas and info */
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background: linear-gradient(to bottom, #4a6a8a, #1e2b38); /* Deeper space/sky gradient */
-            font-family: 'Arial', sans-serif;
-            overflow: hidden;
-        }
-        #game-container {
-             position: relative; /* Needed for absolute positioning of message */
-             width: 800px; /* Match canvas */
-             height: 600px; /* Match canvas */
-        }
-        canvas {
-            border: 3px solid #a0b0c0; /* Lighter border */
-            background: linear-gradient(to bottom, #d0e0f0, #a0c0e0); /* Soft gradient bg */
-            box-shadow: 0 0 20px rgba(0,0,0,0.6);
-            display: block;
-        }
-        #info-bar {
-             color: #fff;
-             margin-top: 10px;
-             font-size: 1.2em;
-             text-shadow: 1px 1px 2px black;
-             width: 800px; /* Match canvas width */
-             text-align: center;
-        }
-        #message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 2.8em; /* Slightly larger */
-            font-weight: bold;
-            color: white;
-            background-color: rgba(0, 0, 0, 0.75);
-            padding: 35px 45px;
-            border-radius: 15px;
-            display: none;
-            text-align: center;
-            text-shadow: 2px 2px 5px rgba(0,0,0,0.9);
-            border: 3px solid rgba(255, 255, 255, 0.6);
-            z-index: 10; /* Ensure it's on top */
-        }
-         #message span { /* Style for subtext */
-             font-size: 0.5em;
-             font-weight: normal;
-             display: block; /* Put on new line */
-             margin-top: 10px;
-         }
+        body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(to bottom, #3a5a7a, #1a2530); font-family: 'Arial', sans-serif; overflow: hidden; }
+        #game-container { position: relative; width: 800px; height: 600px; background: linear-gradient(to bottom, #c8d8e8, #9ab8d8); border: 3px solid #a0b0c0; box-shadow: 0 0 20px rgba(0,0,0,0.7); }
+        canvas { display: block; }
+        #info-bar { color: #fff; margin-bottom: 10px; font-size: 1.2em; text-shadow: 1px 1px 2px black; width: 800px; text-align: center; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; }
+        #powerup-info { min-width: 150px; text-align: right; }
+        #message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; font-weight: bold; color: white; background-color: rgba(0, 0, 0, 0.8); padding: 35px 45px; border-radius: 15px; display: none; text-align: center; text-shadow: 2px 2px 5px rgba(0,0,0,0.9); border: 3px solid rgba(255, 255, 255, 0.6); z-index: 10; }
+        #message span { font-size: 0.5em; font-weight: normal; display: block; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <div id="info-bar">Level: <span id="level-display">1</span></div>
+    <div id="info-bar">
+        <div id="level-info">Level: <span id="level-display">1</span></div>
+        <div id="powerup-info"></div>
+    </div>
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="message"></div>
     </div>
 
     <script>
-        // --- Enhanced Configuration ---
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const messageDiv = document.getElementById('message');
-        const levelDisplay = document.getElementById('level-display');
-
-        const GRAVITY = 0.18;
-        const PLAYER_SPEED = 6;
-        const HOOK_SPEED = 10; // Speed the hook travels upwards
-        const BALL_SIZES = [10, 18, 28, 42];
-        const PLAYER_HEIGHT = 45;
-        const PLAYER_WIDTH = 40;
-
-        // --- Level Definitions ---
+        // --- Configuration (Unchanged) ---
+        const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d'); const messageDiv = document.getElementById('message'); const levelDisplay = document.getElementById('level-display'); const powerupInfoDiv = document.getElementById('powerup-info');
+        const GRAVITY = 0.18; const PLAYER_SPEED = 6; const HOOK_SPEED = 10; const BALL_SIZES = [10, 18, 28, 42]; const PLAYER_HEIGHT = 45; const PLAYER_WIDTH = 40; const HOOK_COLOR = '#888888'; const HOOK_WIDTH = 4;
+        const POWERUP_DROP_CHANCE = 0.15; const POWERUP_SPEED = 2; const POWERUP_RADIUS = 12;
+        const POWERUP_TYPES = { DOUBLE_HOOK: 'DOUBLE_HOOK', GUN: 'GUN', SLOW_BALLS: 'SLOW_BALLS', FREEZE_BALLS: 'FREEZE_BALLS' };
+        const POWERUP_COLORS = { [POWERUP_TYPES.DOUBLE_HOOK]: '#FFD700', [POWERUP_TYPES.GUN]: '#FF6347', [POWERUP_TYPES.SLOW_BALLS]: '#87CEEB', [POWERUP_TYPES.FREEZE_BALLS]: '#FFFFFF' };
+        const POWERUP_DURATION = 5000; const POWERUP_SLOW_FACTOR = 0.4; const GUN_AMMO = 5; const GUN_BULLET_SPEED = 9; const GUN_BULLET_WIDTH = 3; const GUN_BULLET_HEIGHT = 10; const GUN_SPREAD_ANGLE = Math.PI / 12;
         const LEVELS = [
-            // Level 1: One large ball
             [ { x: canvas.width / 2, y: 150, size: 3, vx: 2.5, vy: 0 } ],
-            // Level 2: Two large balls
-            [
-                { x: 150, y: 100, size: 3, vx: 2.5, vy: 0 },
-                { x: canvas.width - 150, y: 150, size: 3, vx: -2.5, vy: 0 }
-            ],
-            // Level 3: Mix of sizes
-            [
-                { x: 100, y: 100, size: 2, vx: 3, vy: 0 },
-                { x: canvas.width / 2, y: 150, size: 3, vx: -2, vy: 0 },
-                { x: canvas.width - 100, y: 100, size: 2, vx: -3, vy: 0 }
-            ],
-             // Level 4: More balls, smaller start
-            [
-                { x: 100, y: 80, size: 1, vx: 4, vy: 0 },
-                { x: 300, y: 120, size: 2, vx: -3, vy: 0 },
-                { x: 500, y: 120, size: 2, vx: 3, vy: 0 },
-                { x: 700, y: 80, size: 1, vx: -4, vy: 0 }
-            ],
-             // Level 5: Challenge
-             [
-                 { x: canvas.width * 0.2, y: 100, size: 3, vx: 2, vy: 0 },
-                 { x: canvas.width * 0.8, y: 100, size: 3, vx: -2, vy: 0 },
-                 { x: canvas.width * 0.5, y: 150, size: 2, vx: 3, vy: 0 },
-             ]
+            [ { x: 150, y: 100, size: 3, vx: 2.5, vy: 0 }, { x: canvas.width - 150, y: 150, size: 3, vx: -2.5, vy: 0 } ],
+            [ { x: 100, y: 100, size: 2, vx: 3, vy: 0 }, { x: canvas.width / 2, y: 150, size: 3, vx: -2, vy: 0 }, { x: canvas.width - 100, y: 100, size: 2, vx: -3, vy: 0 } ],
+            [ { x: 100, y: 80, size: 1, vx: 4, vy: 0 }, { x: 300, y: 120, size: 2, vx: -3, vy: 0 }, { x: 500, y: 120, size: 2, vx: 3, vy: 0 }, { x: 700, y: 80, size: 1, vx: -4, vy: 0 } ],
+            [ { x: canvas.width * 0.2, y: 100, size: 3, vx: 2, vy: 0 }, { x: canvas.width * 0.8, y: 100, size: 3, vx: -2, vy: 0 }, { x: canvas.width * 0.5, y: 150, size: 2, vx: 3, vy: 0 }, ]
         ];
+        const TARGET_BOUNCE_HEIGHTS = [ PLAYER_HEIGHT + 35, canvas.height * 0.5, canvas.height * 0.75, canvas.height - BALL_SIZES[3] - 15 ];
+        const INITIAL_BOUNCE_VY = TARGET_BOUNCE_HEIGHTS.map(h => -Math.sqrt(2 * GRAVITY * Math.max(1, h)));
+        INITIAL_BOUNCE_VY.forEach((vy, i) => { if (Math.abs(vy) < 2) INITIAL_BOUNCE_VY[i] = -2; });
+        const BALL_COLORS = [ { fill: 'rgba(255, 100, 100, 0.9)', stroke: 'rgba(180, 50, 50, 1)' }, { fill: 'rgba(100, 200, 255, 0.9)', stroke: 'rgba(50, 120, 180, 1)' }, { fill: 'rgba(100, 255, 100, 0.9)', stroke: 'rgba(50, 180, 50, 1)' }, { fill: 'rgba(255, 180, 80, 0.9)', stroke: 'rgba(200, 120, 40, 1)' } ];
 
-        // --- Bounce Physics (Pre-calculated) ---
-        const TARGET_BOUNCE_HEIGHTS = [
-             PLAYER_HEIGHT + 35, // Adjusted slightly higher for clearance
-             canvas.height * 0.5,
-             canvas.height * 0.75,
-             canvas.height - BALL_SIZES[3] - 15 // Near top
-        ];
-        const INITIAL_BOUNCE_VY = TARGET_BOUNCE_HEIGHTS.map(h =>
-             -Math.sqrt(2 * GRAVITY * Math.max(1, h)) // Ensure h > 0
-        );
-        INITIAL_BOUNCE_VY.forEach((vy, i) => {
-            if (Math.abs(vy) < 2) INITIAL_BOUNCE_VY[i] = -2;
-        });
-
-         const BALL_COLORS = [
-             { fill: 'rgba(255, 100, 100, 0.9)', stroke: 'rgba(180, 50, 50, 1)' },
-             { fill: 'rgba(100, 200, 255, 0.9)', stroke: 'rgba(50, 120, 180, 1)' },
-             { fill: 'rgba(100, 255, 100, 0.9)', stroke: 'rgba(50, 180, 50, 1)' },
-             { fill: 'rgba(255, 180, 80, 0.9)', stroke: 'rgba(200, 120, 40, 1)' }
-         ];
-
-        // --- Game State ---
-        let player;
-        let hook; // Changed from projectile
-        let balls = [];
-        let keys = {};
-        let gameOver = false;
-        let gameWon = false;
-        let gameRunning = false; // Start paused until initial message clears
-        let currentLevelIndex = 0;
-        let showingMessage = false; // Track message state
+        // --- Game State (Unchanged) ---
+        let player; let hooks = []; let bullets = []; let balls = []; let powerUps = []; let keys = {};
+        let gameOver = false; let gameWon = false; let gameRunning = false; let currentLevelIndex = 0;
+        let showingMessage = false; let animationFrameId; let lastTime = 0;
+        let activePowerUp = null; let canShootDoubleHook = false;
 
         // --- Classes ---
-        class Player { // (Mostly unchanged, using constants)
-             constructor() {
-                 this.width = PLAYER_WIDTH;
-                 this.height = PLAYER_HEIGHT;
-                 this.x = canvas.width / 2 - this.width / 2;
-                 this.y = canvas.height - this.height;
-                 this.color = { main: '#4477CC', accent: '#77AADD' }; // Slightly adjusted blue
+        class Player { constructor() { this.width = PLAYER_WIDTH; this.height = PLAYER_HEIGHT; this.x = canvas.width / 2 - this.width / 2; this.y = canvas.height - this.height; this.color = { main: '#4477CC', accent: '#77AADD' }; } draw() { const gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height); gradient.addColorStop(0, this.color.accent); gradient.addColorStop(1, this.color.main); ctx.fillStyle = gradient; ctx.strokeStyle = '#224488'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(this.x + 5, this.y); ctx.lineTo(this.x + this.width - 5, this.y); ctx.quadraticCurveTo(this.x + this.width, this.y, this.x + this.width, this.y + 5); ctx.lineTo(this.x + this.width, this.y + this.height - 5); ctx.quadraticCurveTo(this.x + this.width, this.y + this.height, this.x + this.width - 5, this.y + this.height); ctx.lineTo(this.x + 5, this.y + this.height); ctx.quadraticCurveTo(this.x, this.y + this.height, this.x, this.y + this.height - 5); ctx.lineTo(this.x, this.y + 5); ctx.quadraticCurveTo(this.x, this.y, this.x + 5, this.y); ctx.closePath(); ctx.fill(); ctx.stroke(); } move(dx) { this.x += dx; if (this.x < 0) this.x = 0; if (this.x + this.width > canvas.width) this.x = canvas.width - this.width; } }
+        class GrapplingHook { constructor(startX) { this.startX = startX; this.startY = canvas.height; this.currentY = canvas.height; this.active = true; this.color = HOOK_COLOR; this.lineWidth = HOOK_WIDTH; } update() { if (!this.active) return; this.currentY -= HOOK_SPEED; if (this.currentY <= 0) this.retract(); } draw() { if (!this.active) return; ctx.beginPath(); ctx.moveTo(this.startX, this.startY); ctx.lineTo(this.startX, this.currentY); ctx.strokeStyle = this.color; ctx.lineWidth = this.lineWidth; ctx.lineCap = 'round'; ctx.stroke(); ctx.fillStyle = this.color; ctx.fillRect(this.startX - 4, this.currentY - 8, 8, 8); } checkCollision(ball) { if (!this.active) return false; const overlapsX = (ball.x + ball.radius > this.startX - this.lineWidth / 2) && (ball.x - ball.radius < this.startX + this.lineWidth / 2); const overlapsY = (ball.y + ball.radius > this.currentY) && (ball.y - ball.radius < this.startY); return overlapsX && overlapsY; } retract() { this.active = false; } }
+        class Bullet { constructor(x, y, angle) { this.x = x; this.y = y; this.vx = Math.sin(angle) * GUN_BULLET_SPEED; this.vy = -Math.cos(angle) * GUN_BULLET_SPEED; this.width = GUN_BULLET_WIDTH; this.height = GUN_BULLET_HEIGHT; this.color = 'orange'; this.active = true; } update() { if (!this.active) return; this.x += this.vx; this.y += this.vy; if (this.y + this.height < 0 || this.x + this.width < 0 || this.x > canvas.width) this.active = false; } draw() { if (!this.active) return; ctx.fillStyle = this.color; ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height); } checkCollision(ball) { if (!this.active) return false; const distX = (this.x + this.width/2) - ball.x; const distY = (this.y + this.height/2) - ball.y; if (Math.sqrt(distX*distX + distY*distY) < ball.radius + Math.max(this.width, this.height)/2) { return this.x < ball.x + ball.radius && this.x + this.width > ball.x - ball.radius && this.y < ball.y + ball.radius && this.y + this.height > ball.y - ball.radius; } return false; } }
+        class Ball { constructor(x, y, size, vx, vy) { this.x = x; this.y = y; this.size = size; this.radius = BALL_SIZES[this.size]; this.base_vx = vx; this.base_vy = vy; this.vx = vx; this.vy = vy; this.colors = BALL_COLORS[this.size % BALL_COLORS.length]; this.frozen = false; this.isSlow = false; // Added flag
+                this.bounceVy = INITIAL_BOUNCE_VY[this.size]; }
+             draw() { const gradient = ctx.createRadialGradient( this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1, this.x, this.y, this.radius ); gradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)'); gradient.addColorStop(0.8, this.colors.fill); gradient.addColorStop(1, this.colors.stroke); ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = gradient; ctx.fill(); ctx.strokeStyle = this.colors.stroke; ctx.lineWidth = 1.5; ctx.stroke(); ctx.closePath(); }
+             update() { // Removed slowFactor argument, use internal state
+                 if (this.frozen) return;
+                 const slowFactor = this.isSlow ? POWERUP_SLOW_FACTOR : 1.0; // Use internal flag
+                 const currentGravity = GRAVITY * slowFactor;
+                 this.vy += currentGravity;
+                 this.x += this.vx * slowFactor;
+                 this.y += this.vy * slowFactor;
+                 if (this.x + this.radius > canvas.width || this.x - this.radius < 0) { this.vx = -this.vx; this.base_vx = -this.base_vx; this.x = (this.x - this.radius < 0) ? this.radius : canvas.width - this.radius; }
+                 if (this.y + this.radius >= canvas.height && this.vy > 0) { this.y = canvas.height - this.radius; this.vy = this.bounceVy; // Use stored bounceVy (already adjusted by setSlow)
+                      if (this.vy > -1) this.vy = -1;}
+                 if (this.y - this.radius < 0 && this.vy < 0) { this.y = this.radius; this.vy *= -0.6; }
              }
-             draw() {
-                 const gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
-                 gradient.addColorStop(0, this.color.accent);
-                 gradient.addColorStop(1, this.color.main);
-                 ctx.fillStyle = gradient;
-                 ctx.strokeStyle = '#224488';
-                 ctx.lineWidth = 2;
-                 ctx.beginPath();
-                 ctx.moveTo(this.x + 5, this.y);
-                 ctx.lineTo(this.x + this.width - 5, this.y);
-                 ctx.quadraticCurveTo(this.x + this.width, this.y, this.x + this.width, this.y + 5);
-                 ctx.lineTo(this.x + this.width, this.y + this.height - 5);
-                 ctx.quadraticCurveTo(this.x + this.width, this.y + this.height, this.x + this.width - 5, this.y + this.height);
-                 ctx.lineTo(this.x + 5, this.y + this.height);
-                 ctx.quadraticCurveTo(this.x, this.y + this.height, this.x, this.y + this.height - 5);
-                 ctx.lineTo(this.x, this.y + 5);
-                 ctx.quadraticCurveTo(this.x, this.y, this.x + 5, this.y);
-                 ctx.closePath();
-                 ctx.fill();
-                 ctx.stroke();
-             }
-             move(dx) {
-                 this.x += dx;
-                 if (this.x < 0) this.x = 0;
-                 if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
-             }
+             freeze() { this.frozen = true; }
+             unfreeze() { this.frozen = false; }
+             setSlow(slow) {
+                 if (this.isSlow === slow) return; // No change needed
+                 this.isSlow = slow;
+                 if (slow) {
+                     this.bounceVy = INITIAL_BOUNCE_VY[this.size] * Math.sqrt(POWERUP_SLOW_FACTOR);
+                     // Reduce current vy proportionally to avoid sudden jump/drop
+                     this.vy *= Math.sqrt(POWERUP_SLOW_FACTOR);
+                 } else {
+                     this.bounceVy = INITIAL_BOUNCE_VY[this.size];
+                      // Increase current vy proportionally
+                     this.vy /= Math.sqrt(POWERUP_SLOW_FACTOR);
+                     // Reset vx based on base_vx direction
+                     this.vx = Math.sign(this.vx || 1) * Math.abs(this.base_vx);
+                 }
+            }
         }
-
-        class GrapplingHook {
-             constructor(startX, startY) {
-                 this.startX = startX;
-                 this.startY = startY; // Player's top edge
-                 this.currentY = startY; // Tip position, moves upwards
-                 this.active = true;
-                 this.color = '#EFEFEF'; // Bright white/grey
-                 this.lineWidth = 3;
-             }
-
-             update() {
-                 if (!this.active) return;
-                 this.currentY -= HOOK_SPEED;
-                 if (this.currentY <= 0) {
-                     this.active = false;
-                     hook = null; // Allow firing again
-                 }
-             }
-
-             draw() {
-                 if (!this.active) return;
-                 ctx.beginPath();
-                 ctx.moveTo(this.startX, this.startY);
-                 ctx.lineTo(this.startX, this.currentY);
-                 ctx.strokeStyle = this.color;
-                 ctx.lineWidth = this.lineWidth;
-                 ctx.lineCap = 'round'; // Nicer ends
-                 ctx.stroke();
-
-                 // Optional: Draw a small "hook" head
-                 ctx.fillStyle = this.color;
-                 ctx.fillRect(this.startX - 4, this.currentY - 8, 8, 8);
-             }
-
-             // Added method to check collision with a ball
-             checkCollision(ball) {
-                 if (!this.active) return false;
-
-                 // 1. Check if ball's X-range overlaps the hook's X
-                 const overlapsX = (ball.x + ball.radius > this.startX - this.lineWidth / 2) &&
-                                   (ball.x - ball.radius < this.startX + this.lineWidth / 2);
-
-                 // 2. Check if ball's Y-range overlaps the hook's current vertical span
-                 const overlapsY = (ball.y + ball.radius > this.currentY) && // Ball bottom below hook tip
-                                   (ball.y - ball.radius < this.startY); // Ball top above hook start
-
-                 return overlapsX && overlapsY;
-             }
-        }
-
-
-        class Ball { // (Unchanged from previous version)
-             constructor(x, y, size, vx, vy) {
-                 this.x = x;
-                 this.y = y;
-                 this.size = size;
-                 this.radius = BALL_SIZES[this.size];
-                 this.vx = vx;
-                 this.vy = vy;
-                 this.colors = BALL_COLORS[this.size % BALL_COLORS.length];
-             }
-             draw() {
-                 const gradient = ctx.createRadialGradient(
-                     this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1,
-                     this.x, this.y, this.radius
-                 );
-                 gradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
-                 gradient.addColorStop(0.8, this.colors.fill);
-                 gradient.addColorStop(1, this.colors.stroke);
-                 ctx.beginPath();
-                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                 ctx.fillStyle = gradient;
-                 ctx.fill();
-                 ctx.strokeStyle = this.colors.stroke;
-                 ctx.lineWidth = 1.5;
-                 ctx.stroke();
-                 ctx.closePath();
-             }
-             update() {
-                 this.vy += GRAVITY;
-                 this.x += this.vx;
-                 this.y += this.vy;
-                 if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
-                     this.vx *= -1;
-                     this.x = (this.x - this.radius < 0) ? this.radius : canvas.width - this.radius;
-                 }
-                 if (this.y + this.radius >= canvas.height && this.vy > 0) {
-                     this.y = canvas.height - this.radius;
-                     this.vy = INITIAL_BOUNCE_VY[this.size];
-                 }
-                 if (this.y - this.radius < 0 && this.vy < 0) {
-                     this.y = this.radius;
-                     this.vy *= -0.6;
-                 }
-             }
-        }
+        class PowerUp { constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = POWERUP_RADIUS; this.color = POWERUP_COLORS[type]; this.active = true; } update() { if (!this.active) return; this.y += POWERUP_SPEED; if (this.y - this.radius > canvas.height) this.active = false; } draw() { if (!this.active) return; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); ctx.strokeStyle = 'black'; ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = 'black'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; let letter = '?'; if (this.type === POWERUP_TYPES.DOUBLE_HOOK) letter = 'D'; if (this.type === POWERUP_TYPES.GUN) letter = 'G'; if (this.type === POWERUP_TYPES.SLOW_BALLS) letter = 'S'; if (this.type === POWERUP_TYPES.FREEZE_BALLS) letter = 'F'; ctx.fillText(letter, this.x, this.y); } checkCollision(player) { if (!this.active) return false; const distX = this.x - (player.x + player.width / 2); const distY = this.y - (player.y + player.height / 2); const distance = Math.sqrt(distX * distX + distY * distY); return distance < this.radius + player.width / 2; } }
 
         // --- Game Logic ---
         function resetGameState() {
-            player = new Player();
-            hook = null;
-            balls = [];
-            keys = {};
-            gameOver = false;
-            gameWon = false;
-            gameRunning = false; // Will be set to true after level load message
-            showingMessage = false;
+            player = new Player(); hooks = []; bullets = []; balls = []; powerUps = []; keys = {};
+            gameOver = false; gameWon = false; gameRunning = false; showingMessage = false;
+            activePowerUp = null; canShootDoubleHook = false; powerupInfoDiv.textContent = '';
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            lastTime = 0;
         }
 
         function loadLevel(levelIndex) {
-             if (levelIndex >= LEVELS.length) {
-                 // Player has completed all levels
-                 gameWon = true;
-                 gameRunning = false;
-                 displayMessage("CONGRATULATIONS!", "#FFD700", "You cleared all levels!"); // Gold color
-                 return false; // Indicate no more levels
-             }
+             if (levelIndex >= LEVELS.length) { gameWon = true; gameRunning = false; displayMessage("CONGRATULATIONS!", "#FFD700", "You cleared all levels!"); return false; }
+             currentLevelIndex = levelIndex; levelDisplay.textContent = currentLevelIndex + 1;
+             balls = []; hooks = []; bullets = []; powerUps = []; // Clear dynamic elements
+             activePowerUp = null; canShootDoubleHook = false; // Reset powerups
+             powerupInfoDiv.textContent = '';
 
-             currentLevelIndex = levelIndex;
-             levelDisplay.textContent = currentLevelIndex + 1; // Update info bar
-             balls = []; // Clear existing balls
-
-             // Display Level Start message
-             displayMessage(`Level ${currentLevelIndex + 1}`, "#448AFF", null, 1500); // Show for 1.5s
+             displayMessage(`Level ${currentLevelIndex + 1}`, "#448AFF", null, 1500);
 
              setTimeout(() => {
-                 // Load new balls after message delay
                  const levelData = LEVELS[currentLevelIndex];
-                 levelData.forEach(b => balls.push(new Ball(b.x, b.y, b.size, b.vx, b.vy)));
-                 gameRunning = true; // Start the game logic for this level
-                 if (!gameOver) gameLoop(); // Resume loop if not game over
+                 levelData.forEach(bData => {
+                      // Create ball and ensure its speed state is reset (in case slow was active on prev level end)
+                      const newBall = new Ball(bData.x, bData.y, bData.size, bData.vx, bData.vy);
+                      newBall.setSlow(false); // Explicitly reset speed state
+                      newBall.unfreeze();   // Explicitly unfreeze
+                      balls.push(newBall);
+                  });
+                 gameRunning = true;
+                 // **FIX:** Reset lastTime HERE, right before starting the loop for the new level
+                 lastTime = performance.now();
+                 if (!gameOver && !gameWon) gameLoop(); // Start/resume loop
              }, 1500); // Delay matches message duration
-
-             return true; // Indicate level loaded successfully
+             return true;
         }
 
+         function activatePowerUp(type) { /* ... (unchanged) ... */ const now = performance.now(); if (type === POWERUP_TYPES.DOUBLE_HOOK) { canShootDoubleHook = true; powerupInfoDiv.textContent = 'Double Hook!'; } else if (type === POWERUP_TYPES.GUN) { activePowerUp = { type: type, ammo: GUN_AMMO }; } else if (type === POWERUP_TYPES.SLOW_BALLS) { activePowerUp = { type: type, endTime: now + POWERUP_DURATION }; balls.forEach(ball => ball.setSlow(true)); } else if (type === POWERUP_TYPES.FREEZE_BALLS) { activePowerUp = { type: type, endTime: now + POWERUP_DURATION }; balls.forEach(ball => ball.freeze()); } }
+         function deactivatePowerUp() { /* ... (unchanged) ... */ if (!activePowerUp) return; const type = activePowerUp.type; if (type === POWERUP_TYPES.SLOW_BALLS) { balls.forEach(ball => ball.setSlow(false)); } else if (type === POWERUP_TYPES.FREEZE_BALLS) { balls.forEach(ball => ball.unfreeze()); } activePowerUp = null; powerupInfoDiv.textContent = ''; }
+         function updatePowerUps(currentTime) { /* ... (unchanged) ... */ if (!activePowerUp) return; if (activePowerUp.endTime) { const timeLeft = Math.max(0, activePowerUp.endTime - currentTime); if (timeLeft === 0) { deactivatePowerUp(); } else { powerupInfoDiv.textContent = `${activePowerUp.type.replace('_', ' ')}: ${(timeLeft / 1000).toFixed(1)}s`; } } else if (activePowerUp.ammo !== undefined) { if (activePowerUp.ammo <= 0) { deactivatePowerUp(); } else { powerupInfoDiv.textContent = `Gun Ammo: ${activePowerUp.ammo}`; } } }
 
-        function update() {
-            if (!gameRunning || showingMessage) return; // Pause updates during messages
-
-            if (keys['ArrowLeft']) player.move(-PLAYER_SPEED);
-            if (keys['ArrowRight']) player.move(PLAYER_SPEED);
-
-            if (hook) hook.update();
-
-            balls.forEach(ball => ball.update());
-
-            checkCollisions();
-
-            // Check level clear condition
-            if (balls.length === 0 && !gameOver && !gameWon && gameRunning) {
-                gameRunning = false; // Pause game while transitioning
-                if (!loadLevel(currentLevelIndex + 1)) {
-                    // loadLevel returned false, meaning game is won
-                    gameWon = true; // Ensure state is set correctly
-                }
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Draw elements even if paused for messages, unless fully stopped
-            if (player) player.draw();
-            if (hook) hook.draw();
-            balls.forEach(ball => ball.draw());
-        }
-
-        function checkCollisions() {
+        function update(currentTime) {
             if (!gameRunning || showingMessage) return;
+            // const deltaTime = currentTime - lastTime; // Not used heavily yet, but available
+            lastTime = currentTime;
 
-            // Hook vs Balls
-            if (hook && hook.active) {
-                for (let i = balls.length - 1; i >= 0; i--) {
-                    const ball = balls[i];
-
-                    if (hook.checkCollision(ball)) { // Use the hook's collision method
-                        hook.active = false; // Deactivate hook upon hit
-                        hook = null; // Allow firing again
-
-                        if (ball.size > 0) {
-                            const newSize = ball.size - 1;
-                            const splitVY = Math.min(-2, INITIAL_BOUNCE_VY[newSize] * 0.5);
-                            balls.push(new Ball(ball.x, ball.y, newSize, -Math.abs(ball.vx || 1.5), splitVY));
-                            balls.push(new Ball(ball.x, ball.y, newSize, Math.abs(ball.vx || 1.5), splitVY));
-                        }
-                        balls.splice(i, 1);
-                        break; // Hook disappears after one hit, stop checking
-                    }
-                }
-            }
-
-            // Player vs Balls
-            if (!gameOver) { // Only check if player is alive
-                 for (let i = 0; i < balls.length; i++) {
-                      const ball = balls[i];
-                      if (circleRectIntersect(ball, player)) {
-                          gameOver = true;
-                          gameRunning = false;
-                          displayMessage("GAME OVER!", "#F44336", `Level ${currentLevelIndex + 1}`); // Red loss color with level info
-                          break;
-                      }
-                 }
-             }
+            if (keys['ArrowLeft']) player.move(-PLAYER_SPEED); if (keys['ArrowRight']) player.move(PLAYER_SPEED);
+            hooks.forEach(hook => hook.update()); hooks = hooks.filter(hook => hook.active);
+            bullets.forEach(bullet => bullet.update()); bullets = bullets.filter(bullet => bullet.active);
+            // **Ball update uses internal slow state now**
+            balls.forEach(ball => ball.update());
+            powerUps.forEach(p => p.update()); powerUps = powerUps.filter(p => p.active);
+            updatePowerUps(currentTime);
+            checkCollisions();
+            if (balls.length === 0 && !gameOver && !gameWon && gameRunning) { gameRunning = false; if (!loadLevel(currentLevelIndex + 1)) gameWon = true; }
         }
 
-        // --- Collision Helper --- (Unchanged)
-        function circleRectIntersect(circle, rect) {
-            const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
-            const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
-            const distX = circle.x - closestX;
-            const distY = circle.y - closestY;
-            const distanceSquared = (distX * distX) + (distY * distY);
-            return distanceSquared < (circle.radius * circle.radius);
-        }
+        function draw() { /* ... (drawing logic unchanged) ... */ ctx.clearRect(0, 0, canvas.width, canvas.height); if (player) player.draw(); hooks.forEach(hook => hook.draw()); bullets.forEach(bullet => bullet.draw()); balls.forEach(ball => ball.draw()); powerUps.forEach(p => p.draw()); if (activePowerUp?.type === POWERUP_TYPES.SLOW_BALLS) { ctx.fillStyle = 'rgba(0, 0, 255, 0.05)'; ctx.fillRect(0, 0, canvas.width, canvas.height); } else if (activePowerUp?.type === POWERUP_TYPES.FREEZE_BALLS) { ctx.fillStyle = 'rgba(200, 200, 255, 0.1)'; ctx.fillRect(0, 0, canvas.width, canvas.height); } }
 
-        // --- Input Handling ---
-        window.addEventListener('keydown', (e) => {
-             if (showingMessage && e.code !== 'Enter') return; // Allow Enter for restart during messages
+        function checkCollisions() { /* ... (unchanged logic, relies on popBall) ... */ if (!gameRunning || showingMessage) return; for (let h = hooks.length - 1; h >= 0; h--) { const hook = hooks[h]; if (!hook.active) continue; for (let i = balls.length - 1; i >= 0; i--) { const ball = balls[i]; if (hook.checkCollision(ball)) { hook.retract(); popBall(i); break; } } } for (let b = bullets.length - 1; b >= 0; b--) { const bullet = bullets[b]; if (!bullet.active) continue; for (let i = balls.length - 1; i >= 0; i--) { const ball = balls[i]; if (bullet.checkCollision(ball)) { bullet.active = false; popBall(i); break; } } } if (!gameOver) { for (let i = 0; i < balls.length; i++) { const ball = balls[i]; if (circleRectIntersect(ball, player)) { gameOver = true; gameRunning = false; if (activePowerUp?.type === POWERUP_TYPES.SLOW_BALLS) balls.forEach(b => b.setSlow(false)); if (activePowerUp?.type === POWERUP_TYPES.FREEZE_BALLS) balls.forEach(b => b.unfreeze()); activePowerUp = null; canShootDoubleHook = false; powerupInfoDiv.textContent = ''; displayMessage("GAME OVER!", "#F44336", `Level ${currentLevelIndex + 1}`); break; } } } for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if (p.checkCollision(player)) { p.active = false; deactivatePowerUp(); activatePowerUp(p.type); powerUps.splice(i, 1); } } }
 
-             keys[e.code] = true;
+        // Helper function to handle ball popping and powerup spawning
+        function popBall(ballIndex) {
+             const ball = balls[ballIndex];
+             if (!ball) return;
 
-             if (gameRunning && !showingMessage) {
-                  if (e.code === 'Space' && !hook) { // Fire hook if none active
-                       hook = new GrapplingHook(player.x + player.width / 2, player.y);
-                       e.preventDefault();
-                  }
-                  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
-                       e.preventDefault();
-                  }
-             } else if ((gameOver || gameWon) && e.code === 'Enter') {
-                   resetGameState();
-                   loadLevel(0); // Start from level 1
-             } else if (showingMessage && e.code === 'Enter' && (gameOver || gameWon)) {
-                  // Allow Enter to restart even if message is still showing
-                  resetGameState();
-                  loadLevel(0);
-             }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            keys[e.code] = false;
-        });
-
-        // --- Message Display ---
-         let messageTimeoutId = null;
-         function displayMessage(text, color, subText = null, duration = null) {
-             if (messageTimeoutId) clearTimeout(messageTimeoutId); // Clear previous timeout if any
-
-             let messageContent = text;
-             if (subText) {
-                 messageContent += `<span>${subText}</span>`;
-             } else if (gameOver || gameWon) {
-                 messageContent += `<span>(Press Enter to Restart)</span>`;
+             // Split ball if applicable
+             if (ball.size > 0) {
+                  const newSize = ball.size - 1;
+                  const splitVY = Math.min(-2, INITIAL_BOUNCE_VY[newSize] * 0.5);
+                  const ball1 = new Ball(ball.x, ball.y, newSize, -Math.abs(ball.base_vx || 1.5), splitVY);
+                  const ball2 = new Ball(ball.x, ball.y, newSize, Math.abs(ball.base_vx || 1.5), splitVY);
+                  // Ensure new balls inherit slow/freeze state
+                  ball1.setSlow(ball.isSlow);
+                  ball2.setSlow(ball.isSlow);
+                  if (ball.frozen) { ball1.freeze(); ball2.freeze(); }
+                  balls.push(ball1, ball2);
              }
 
-             messageDiv.innerHTML = messageContent;
-             messageDiv.style.backgroundColor = color;
-             messageDiv.style.display = 'block';
-             showingMessage = true;
-
-             if (duration) {
-                 messageTimeoutId = setTimeout(() => {
-                     messageDiv.style.display = 'none';
-                     showingMessage = false;
-                      // Resume game loop if it was paused for the message and game is not over/won
-                     if (!gameOver && !gameWon && gameRunning) {
-                          if (animationFrameId) cancelAnimationFrame(animationFrameId); // Prevent duplicates
-                          gameLoop();
-                     }
-                 }, duration);
-             } else {
-                 // If no duration (Game Over/Win), message stays until Enter
+             // Powerup Drop Chance
+             if (Math.random() < POWERUP_DROP_CHANCE) {
+                  const powerupTypes = Object.values(POWERUP_TYPES);
+                  const randomType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+                  // **FIX:** Clamp spawn Y position
+                  const spawnY = Math.min(ball.y, canvas.height - POWERUP_RADIUS - 1); // Ensure it's fully visible
+                  const spawnX = ball.x; // Keep X the same
+                  powerUps.push(new PowerUp(spawnX, spawnY, randomType));
              }
+
+             balls.splice(ballIndex, 1);
          }
 
+        // --- Collision Helper --- (Unchanged)
+        function circleRectIntersect(circle, rect) { const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width)); const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height)); const distX = circle.x - closestX; const distY = circle.y - closestY; const distanceSquared = (distX * distX) + (distY * distY); return distanceSquared < (circle.radius * circle.radius); }
 
-        // --- Game Loop ---
-        let animationFrameId;
-        function gameLoop() {
-            if (!gameRunning || showingMessage) { // Pause loop if game not running OR message is showing (unless it's game over/won msg)
-                 if(gameOver || gameWon) draw(); // Draw final state for game over/won
-                 // Do not request next frame if paused
-                 return;
-             }
+        // --- Input Handling --- (Unchanged)
+        window.addEventListener('keydown', (e) => { if ((gameOver || gameWon) && e.code === 'Enter') { resetGameState(); loadLevel(0); return; } if (showingMessage || !gameRunning) { keys[e.code] = true; if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault(); return; } keys[e.code] = true; if (e.code === 'Space') { e.preventDefault(); if (activePowerUp && activePowerUp.type === POWERUP_TYPES.GUN && activePowerUp.ammo > 0) { const centerX = player.x + player.width / 2; const startY = player.y; const numBullets = 5; const totalSpread = GUN_SPREAD_ANGLE * (numBullets - 1); const startAngle = -totalSpread / 2; for (let i = 0; i < numBullets; i++) { const angle = startAngle + i * GUN_SPREAD_ANGLE; bullets.push(new Bullet(centerX, startY, angle)); } activePowerUp.ammo--; } else { const maxHooks = canShootDoubleHook ? 2 : 1; if (hooks.length < maxHooks) { hooks.push(new GrapplingHook(player.x + player.width / 2)); } } } if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) { e.preventDefault(); } });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-            update();
-            draw();
-            animationFrameId = requestAnimationFrame(gameLoop);
-        }
+        // --- Message Display --- (Unchanged from previous version)
+        let messageTimeoutId = null; function displayMessage(text, color, subText = null, duration = null) { if (messageTimeoutId) clearTimeout(messageTimeoutId); showingMessage = true; let messageContent = text; const isGameOverOrWin = gameOver || gameWon; if (subText) messageContent += `<span>${subText}</span>`; if (isGameOverOrWin) messageContent += `<span>(Press Enter to Restart)</span>`; messageDiv.innerHTML = messageContent; messageDiv.style.backgroundColor = color; messageDiv.style.display = 'block'; if (duration && !isGameOverOrWin) { messageTimeoutId = setTimeout(() => { messageDiv.style.display = 'none'; showingMessage = false; if (gameRunning && !gameOver && !gameWon) { lastTime = performance.now(); if (animationFrameId) cancelAnimationFrame(animationFrameId); gameLoop(); } }, duration); } }
 
-        // --- Start Game ---
-        function startGame() {
-             resetGameState();
-             displayMessage("PANG CLONE!", "#2196F3", "Arrows: Move, Space: Shoot", 2000);
-             setTimeout(() => {
-                  loadLevel(0); // Load the first level after intro message
-             }, 2000); // Delay matches intro message duration
-        }
+        // --- Game Loop --- (Unchanged from previous version)
+        function gameLoop(timestamp) { if (gameOver || gameWon) { draw(); return; } if (showingMessage) { draw(); animationFrameId = requestAnimationFrame(gameLoop); return; } if (gameRunning) { update(timestamp); draw(); animationFrameId = requestAnimationFrame(gameLoop); } }
 
-        // Delay slightly to ensure DOM is fully ready
+        // --- Start Game --- (Unchanged)
+        function startGame() { resetGameState(); displayMessage("PANG CLONE!", "#2196F3", "Arrows: Move, Space: Shoot", 2000); setTimeout(() => { loadLevel(0); }, 2000); }
         window.onload = startGame;
 
     </script>
